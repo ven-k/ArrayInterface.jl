@@ -676,6 +676,11 @@ include("broadcast.jl")
 
 function __init__()
 
+    for (p, m) in Base.loaded_modules
+        Base.pathof(m)
+    end
+
+        
     @require SuiteSparse = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9" begin
         function lu_instance(jac_prototype::SparseMatrixCSC)
             return SuiteSparse.UMFPACK.UmfpackLU(
@@ -924,6 +929,49 @@ function __init__()
         @inline axes(A::OffsetArrays.OffsetArray) = Base.axes(A)
         @inline _axes(A::OffsetArrays.OffsetArray, dim::Integer) = Base.axes(A, dim)
         @inline axes(A::OffsetArrays.OffsetArray{T,N}, ::StaticInt{M}) where {T,M,N} = _axes(A, StaticInt{M}(), gt(StaticInt{M}(),StaticInt{N}()))
+    end
+end
+
+
+function Base.pathof(m::Module)
+    pkgid = get(Base.module_keys, m, nothing)
+    pkgid === nothing && return nothing
+    origin = get(Base.pkgorigins, pkgid, nothing)
+    origin === nothing && return nothing
+    path  = origin.path
+    path === nothing && return nothing
+    fixed_path =  Base.fixup_stdlib_path(path)
+    @info origin fixed_path
+    stdlib_packs = ["SBMLBioModels", "CellMLPhysiome", "JuliaSimSurrogates", "FMUs", 
+    "FMUGeneration", "JuliaSimBackend", "PDESurrogates", "JuliaSim", "ModelLibraryBase", "JuliaSimStdLib", 
+    "SuiteSparse", "Future", "LinearAlgebra", "LibGit2", "NetworkOptions", "Printf", "nghttp2_jll", "Logging",
+    "Downloads", "Zlib_jll", "InteractiveUtils", "Base64", "Sockets", "Markdown", "SHA", "MbedTLS_jll", "OpenLibm_jll",
+    "Random", "Libdl", "Serialization", "LibSSH2_jll", "OpenBLAS_jll", "Distributed", "DelimitedFiles",
+    "SharedArrays", "ArgTools", "Dates", "REPL", "MozillaCACerts_jll", "LibCURL", "p7zip_jll", "Pkg", 
+    "CompilerSupportLibraries_jll", "Tar", "UUIDs", "LazyArtifacts", "Artifacts", "Test", "SuiteSparse_jll", 
+    "Mmap", "Profile", "LibCURL_jll", "TOML", "Statistics", "SparseArrays", "Unicode"]
+    any(x -> x == m, stdlib_packs) && (final_path 
+        = replace(fixed_path, "/root/.cache/julia-buildkite-plugin/depots/21f7f767-44f0-46c1-9437-3f12e191309b/packages" => Base.init_depot_path()[3]*"stdlib/v1.6"); @info final_path; return final_path)
+    final_path = replace(fixed_path, "/root/.cache/julia-buildkite-plugin/depots/21f7f767-44f0-46c1-9437-3f12e191309b" => "/home/k/.julia")
+    @info final_path
+    return final_path
+end
+
+function Base.current_project(dir::AbstractString)
+    # look for project file in current dir and parents
+    dir = replace(dir, "/root/.cache/julia-buildkite-plugin/depots/21f7f767-44f0-46c1-9437-3f12e191309b/packages" => Base.init_depot_path()[3]*"/stdlib/v1.6")
+    home = homedir()
+    @info "home $home dir $dir \n\n"
+    while true
+        for proj in Base.project_names
+            file = joinpath(dir, proj)
+            @info "file $file"
+            Base.isfile_casesensitive(file) && return file
+        end
+        # bail at home directory
+        dir == home && break
+        old, dir = dir, dirname(dir)
+        dir == old && break
     end
 end
 
